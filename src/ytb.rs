@@ -15,8 +15,8 @@ pub struct VideoInfo {
 pub fn search_and_save_evidence() {
     let bili_videos = fs::read_to_string("data/bili.list").unwrap();
     let mut evidence_file = fs::OpenOptions::new()
-        .write(true)
-        .open("evidence.txt")
+        .append(true).create(true)
+        .open("data/evidence.txt")
         .unwrap();
 
     bili_videos
@@ -26,11 +26,13 @@ pub fn search_and_save_evidence() {
                 .map(|s| s.to_owned())
                 .collect::<Vec<String>>()
         })
-        .map(|v| {
+        .for_each(|v| {
+            eprintln!("searching: {}", &v[1]);
+            thread::sleep(time::Duration::from_millis(500));
             let search_result = get_data(v[1].clone()).unwrap();
             let vinfo = parse_data(search_result);
 
-            writeln!(evidence_file, "{} | {} | {} | {}", v[0], v[1], vinfo.link, vinfo.title)
+            writeln!(evidence_file, "{} | {} | {} | {}", v[0], v[1], vinfo.link, vinfo.title).unwrap()
         });
 }
 
@@ -53,9 +55,15 @@ fn get_data(search: String) -> Result<Value, Box<dyn error::Error>>{
 }
 
 fn parse_data(data: Value) -> VideoInfo {
-    let json_list = data.as_object().unwrap()["contents"].as_array().unwrap();
+    let json_list_first = &data
+        .as_object().unwrap()
+        ["contents"]
+        .as_array().unwrap()
+        [0]
+        .as_object().unwrap()
+        ["video"];
 
-    match &json_list[0] {
+    match json_list_first {
         Value::Object(video) => {
             VideoInfo {
                 link: format!("youtu.be/{}", video["videoId"].as_str().unwrap()),

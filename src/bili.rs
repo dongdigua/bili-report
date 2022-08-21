@@ -1,10 +1,11 @@
 use std::{thread, time};
-use std::error;
+use std::{error, fs};
+use std::io::prelude::*;
 use reqwest::blocking;
 use serde_json::{self, Value};
 
 const BILI_API: &'static str = "http://api.bilibili.com/x/space/arc/search/";
-const PS: u8 = 15;  // pn should double
+const PS: u8 = 30;
 
 pub struct VideoInfo {
     pub bvid: String,
@@ -19,8 +20,14 @@ pub enum BiliError {
 }
 
 pub fn get_and_save_data(mid: u32, pn: u8) {
-    let line_vec: Vec<String> = (1..pn)
+    let mut save_file = fs::OpenOptions::new()
+        .write(true).create(true)
+        .open("data/bili.list")
+        .unwrap();
+
+    (1..=pn)
         .map(|i| {
+            eprintln!("getting page: {}", i);
             let data_json = get_data(mid, i).unwrap();
             match parse_data(&data_json) {
                 Ok(vinfo_list) => {
@@ -35,16 +42,14 @@ pub fn get_and_save_data(mid: u32, pn: u8) {
             }
         })
         .flatten()
-        .map(|i| {
-            format!("{} :|: {}", i.bvid, i.title)
-        })
-        .collect();
-    println!("{:#?}", line_vec)
+        .for_each(|i| {
+            writeln!(save_file, "{} :|: {}", i.bvid, i.title).unwrap()
+        });
 }
 
 fn get_data(mid: u32, pn: u8) -> Result<Value, Box<dyn error::Error>> {
     let request_url = format!("{}?mid={}&ps={}&pn={}", BILI_API, mid, PS, pn);
-    //let cookie = std::fs::read_to_string("data/cookie").unwrap();
+    //let cookie = fs::read_to_string("data/cookie").unwrap();
 
     let client = blocking::Client::builder()
         .proxy(reqwest::Proxy::https("socks5://127.0.0.1:9050")?)
